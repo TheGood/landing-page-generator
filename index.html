@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Landing Page Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: #f5f5f5;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        background: #2c3e50;
+        color: white;
+        padding: 1.5rem 2rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      header h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      header p {
+        margin-top: 0.5rem;
+        opacity: 0.9;
+        font-size: 0.9rem;
+      }
+
+      .container {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      .panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: white;
+        margin: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .panel-header {
+        background: #34495e;
+        color: white;
+        padding: 1rem 1.5rem;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .panel-content {
+        flex: 1;
+        overflow: auto;
+        padding: 1.5rem;
+      }
+
+      textarea {
+        width: 100%;
+        height: 100%;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 1rem;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        resize: none;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: #3498db;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      button {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.875rem;
+      }
+
+      .btn-primary {
+        background: #3498db;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #2980b9;
+      }
+
+      .btn-success {
+        background: #27ae60;
+        color: white;
+      }
+
+      .btn-success:hover {
+        background: #229954;
+      }
+
+      .btn-secondary {
+        background: #95a5a6;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: #7f8c8d;
+      }
+
+      .status {
+        margin-top: 0.5rem;
+        padding: 0.75rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        display: none;
+      }
+
+      .status.show {
+        display: block;
+      }
+
+      .status.error {
+        background: #ffebee;
+        color: #c62828;
+        border: 1px solid #ef9a9a;
+      }
+
+      .status.success {
+        background: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #a5d6a7;
+      }
+
+      .status.info {
+        background: #e3f2fd;
+        color: #1565c0;
+        border: 1px solid #90caf9;
+      }
+
+      .html-output {
+        width: 100%;
+        height: 100%;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 1rem;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        overflow: auto;
+        background: #fafafa;
+      }
+
+      .help-text {
+        font-size: 0.875rem;
+        color: #7f8c8d;
+        margin-top: 0.5rem;
+      }
+
+      .nav-logo {
+        height: 64px;
+        width: auto;
+        flex-shrink: 0;
+      }
+
+      .header-text {
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img
+        class="nav-logo"
+        src="Lead_magnet_monster-removebg-preview.png"
+        alt="Landing Page Generator logo"
+      />
+      <div class="header-text">
+        <h1>Caroline's Landing Page Generator</h1>
+        <p>Paste YAML from Claude and get a complete landing page</p>
+      </div>
+    </header>
+
+    <div class="container">
+      <!-- Left Panel: YAML Input -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>YAML Content</span>
+          <div class="button-group">
+            <button class="btn-secondary" onclick="loadExample()">
+              Load Example
+            </button>
+            <button class="btn-primary" onclick="generateHTML()">
+              Generate HTML →
+            </button>
+          </div>
+        </div>
+        <div class="panel-content">
+          <div id="yamlStatus" class="status"></div>
+          <p class="help-text" style="margin-bottom: 1rem">
+            📋 <strong>How to use:</strong> Get Claude to generate YAML content
+            for your landing page, then paste it here and click "Generate HTML"
+          </p>
+          <textarea
+            id="yamlInput"
+            placeholder="Paste your YAML content here...
+
+# Example:
+Main Headline: 'Your headline here'
+Sub-headline: 'Your subheadline here'
+..."
+          ></textarea>
+        </div>
+      </div>
+
+      <!-- Right Panel: HTML Output -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Generated HTML</span>
+          <div class="button-group">
+            <button class="btn-success" onclick="copyHTML()">Copy HTML</button>
+            <button class="btn-secondary" onclick="downloadHTML()">
+              Download
+            </button>
+            <button class="btn-secondary" onclick="clearHTML()">Clear</button>
+          </div>
+        </div>
+        <div class="panel-content">
+          <div id="htmlStatus" class="status"></div>
+          <div id="htmlOutput" class="html-output">
+            Your generated HTML will appear here...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Store template in memory
+      let template = '';
+
+      // Load template on page load
+      async function loadTemplate() {
+        try {
+          const response = await fetch('the-good-landing-page-template.html');
+          template = await response.text();
+          console.log('Template loaded successfully');
+        } catch (error) {
+          console.error('Error loading template:', error);
+          showStatus(
+            'htmlStatus',
+            'Error loading template. Make sure the-good-landing-page-template.html is in the same directory.',
+            'error'
+          );
+        }
+      }
+
+      // Generate HTML from YAML
+      function generateHTML() {
+        const yamlText = document.getElementById('yamlInput').value;
+
+        if (!yamlText.trim()) {
+          showStatus('yamlStatus', 'Please paste YAML content first', 'error');
+          return;
+        }
+
+        if (!template) {
+          showStatus(
+            'htmlStatus',
+            'Template not loaded yet. Please wait...',
+            'error'
+          );
+          return;
+        }
+
+        try {
+          // Parse YAML
+          const data = jsyaml.load(yamlText);
+
+          // Replace variables in template
+          let html = template;
+
+          // Replace each variable (supports nested <strong> wrappers and spacing)
+          for (const [key, value] of Object.entries(data)) {
+            const replacement = value || '';
+            const escapedKey = escapeRegex(key);
+
+            // 1) {key}
+            html = html.replace(
+              new RegExp(`\\{\\s*${escapedKey}\\s*\\}`, 'g'),
+              replacement
+            );
+
+            // 2) {<strong>key</strong>} with any number of nested <strong> wrappers
+            html = html.replace(
+              new RegExp(
+                `\\{\\s*(?:<strong>\\s*)+${escapedKey}(?:\\s*<\\/strong>)+\\s*\\}`,
+                'g'
+              ),
+              replacement
+            );
+
+            // 3) <strong>{key}</strong> with any number of nested <strong> wrappers
+            html = html.replace(
+              new RegExp(
+                `((?:<strong>\\s*)+)\\{\\s*${escapedKey}\\s*\\}((?:\\s*<\\/strong>)+)`,
+                'g'
+              ),
+              (_, p1, p2) => `${p1}${replacement}${p2}`
+            );
+
+            // 3b) <strong>{key</strong>} where the closing brace appears AFTER the closing </strong> tags
+            html = html.replace(
+              new RegExp(
+                `((?:<strong>\\s*)+)\\{\\s*${escapedKey}((?:\\s*<\\/strong>)+)\\s*\\}`,
+                'g'
+              ),
+              (_, p1, p2) => `${p1}${replacement}${p2}`
+            );
+
+            // 4) {<strong><strong>key</strong></strong} where closing brace appears after closing strongs
+            html = html.replace(
+              new RegExp(
+                `\\{\\s*((?:<strong>\\s*)+)${escapedKey}((?:\\s*<\\/strong>)+)\\s*\\}`,
+                'g'
+              ),
+              (_, p1, p2) => `${replacement}`
+            );
+          }
+
+          // Display HTML
+          document.getElementById('htmlOutput').textContent = html;
+          showStatus('htmlStatus', 'HTML generated successfully!', 'success');
+        } catch (error) {
+          console.error('Error generating HTML:', error);
+          showStatus(
+            'yamlStatus',
+            `Error parsing YAML: ${error.message}`,
+            'error'
+          );
+        }
+      }
+
+      // Copy HTML to clipboard
+      async function copyHTML() {
+        const html = document.getElementById('htmlOutput').textContent;
+
+        if (!html || html === 'Your generated HTML will appear here...') {
+          showStatus('htmlStatus', 'Generate HTML first', 'error');
+          return;
+        }
+
+        try {
+          await navigator.clipboard.writeText(html);
+          showStatus('htmlStatus', 'HTML copied to clipboard!', 'success');
+        } catch (error) {
+          showStatus(
+            'htmlStatus',
+            'Failed to copy. Try selecting and copying manually.',
+            'error'
+          );
+        }
+      }
+
+      // Download HTML
+      function downloadHTML() {
+        const html = document.getElementById('htmlOutput').textContent;
+
+        if (!html || html === 'Your generated HTML will appear here...') {
+          showStatus('htmlStatus', 'Generate HTML first', 'error');
+          return;
+        }
+
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'landing-page.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showStatus('htmlStatus', 'HTML downloaded!', 'success');
+      }
+
+      // Clear generated HTML
+      function clearHTML() {
+        const outputEl = document.getElementById('htmlOutput');
+        outputEl.textContent = 'Your generated HTML will appear here...';
+        showStatus(
+          'htmlStatus',
+          'Output cleared. Generate new HTML when ready.',
+          'info'
+        );
+      }
+
+      // Load example YAML
+      async function loadExample() {
+        try {
+          const response = await fetch('example-content.yaml');
+          const exampleYAML = await response.text();
+          document.getElementById('yamlInput').value = exampleYAML;
+          showStatus('yamlStatus', 'Example YAML loaded!', 'success');
+        } catch (error) {
+          // Fallback example if file not found
+          const fallbackExample = `Main Headline: "Transform Your Business with AI-Powered Solutions"
+Sub-headline: "Increase efficiency by 300% and reduce costs"
+Primary CTA Button: "Get Started Today"
+Value Proposition: "We help businesses leverage AI technology"
+Pain point 1: "Too much time on manual tasks"
+Pain point 2: "Unable to scale without more staff"
+Pain point 3: "Missing opportunities"
+Main point 1: "Automate 80% of tasks"
+Main point 2: "Real-time insights"
+Main point 3: "Scale efficiently"`;
+
+          document.getElementById('yamlInput').value = fallbackExample;
+          showStatus('yamlStatus', 'Example YAML loaded (fallback)', 'info');
+        }
+      }
+
+      // Show status message
+      function showStatus(elementId, message, type) {
+        const statusEl = document.getElementById(elementId);
+        statusEl.textContent = message;
+        statusEl.className = `status show ${type}`;
+
+        if (type === 'success') {
+          setTimeout(() => {
+            statusEl.classList.remove('show');
+          }, 5000);
+        }
+      }
+
+      // Escape special regex characters
+      function escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }
+
+      // Initialize on page load
+      window.addEventListener('DOMContentLoaded', () => {
+        loadTemplate();
+      });
+    </script>
+  </body>
+</html>

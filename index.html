@@ -226,7 +226,8 @@
           <div id="yamlStatus" class="status"></div>
           <p class="help-text" style="margin-bottom: 1rem">
             📋 <strong>How to use:</strong> Get Claude to generate YAML content
-            for your landing page, then paste it here and click "Generate HTML"
+            for your landing page, then paste it here and click "Generate HTML"<br>
+            ✨ <strong>New:</strong> Apostrophes are auto-escaped, nested YAML is supported, and variable names are matched flexibly!
           </p>
           <textarea
             id="yamlInput"
@@ -281,6 +282,112 @@ Sub-headline: 'Your subheadline here'
         }
       }
 
+      // Auto-escape apostrophes in single-quoted YAML strings
+      function autoEscapeApostrophes(yamlText) {
+        // Process line by line to properly handle YAML structure
+        const lines = yamlText.split('\n');
+
+        return lines.map(line => {
+          // Match YAML line pattern: key: 'value'
+          const match = line.match(/^(\s*[^:]+:\s*)'(.*)'\s*$/);
+          if (!match) return line; // Not a quoted value line, return as-is
+
+          const [, prefix, content] = match;
+
+          // Protect already-escaped apostrophes by replacing '' with a placeholder
+          const placeholder = '\x00DOUBLE_APOS\x00';
+          let processed = content.replace(/''/g, placeholder);
+
+          // Now escape all remaining single apostrophes
+          processed = processed.replace(/'/g, "''");
+
+          // Restore the already-escaped apostrophes
+          processed = processed.replace(new RegExp(placeholder, 'g'), "''");
+
+          return `${prefix}'${processed}'`;
+        }).join('\n');
+      }
+
+      // Flatten nested YAML objects into flat key-value pairs
+      function flattenObject(obj, prefix = '') {
+        const flattened = {};
+
+        for (const [key, value] of Object.entries(obj)) {
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // Recursively flatten nested objects
+            Object.assign(flattened, flattenObject(value, prefix ? `${prefix}.${key}` : key));
+          } else {
+            // Add the value with its full path as key
+            const fullKey = prefix ? `${prefix}.${key}` : key;
+            flattened[fullKey] = value;
+
+            // Also add common naming variations
+            const spacedKey = fullKey.replace(/[._]/g, ' ');
+            const camelToSpaced = fullKey.replace(/([a-z])([A-Z])/g, '$1 $2');
+            const snakeToSpaced = fullKey.replace(/_/g, ' ');
+
+            flattened[spacedKey] = value;
+            flattened[camelToSpaced] = value;
+            flattened[snakeToSpaced] = value;
+          }
+        }
+
+        return flattened;
+      }
+
+      // Normalize key for flexible matching
+      function normalizeKey(key) {
+        return key
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, ' ')  // Replace non-alphanumeric with space
+          .trim()
+          .replace(/\s+/g, ' ');         // Normalize multiple spaces
+      }
+
+      // Create a mapping of normalized keys to original values
+      function createFlexibleMapping(data) {
+        const mapping = new Map();
+
+        for (const [key, value] of Object.entries(data)) {
+          const normalized = normalizeKey(key);
+          mapping.set(normalized, value);
+
+          // Also store with original key for exact matches
+          mapping.set(key, value);
+        }
+
+        return mapping;
+      }
+
+      // Provide helpful error messages for common YAML issues
+      function getUserFriendlyError(error, yamlText) {
+        const message = error.message || '';
+
+        // Check for apostrophe issues
+        if (message.includes('bad indentation') || message.includes('mapping entry')) {
+          const lines = yamlText.split('\n');
+          const lineMatch = message.match(/\((\d+):/);
+          if (lineMatch) {
+            const lineNum = parseInt(lineMatch[1]) - 1;
+            const problemLine = lines[lineNum];
+
+            if (problemLine && problemLine.includes("'") && !problemLine.includes("''")) {
+              return `Found an unescaped apostrophe on line ${lineNum + 1}. The line reads: "${problemLine.trim()}". Try using double apostrophes ('') instead of single apostrophes ('), or remove the apostrophe.`;
+            }
+          }
+
+          return `${message}. This usually means there's a formatting issue. Check for:\n• Unescaped apostrophes (use '' instead of ')\n• Inconsistent indentation\n• Missing colons after keys`;
+        }
+
+        // Check for duplicate keys
+        if (message.includes('duplicated mapping key')) {
+          return `${message}. You have the same key defined twice in your YAML. Each key should appear only once.`;
+        }
+
+        // Generic YAML parsing error
+        return `YAML parsing error: ${message}. Please check your YAML syntax.`;
+      }
+
       // Generate HTML from YAML
       function generateHTML() {
         const yamlText = document.getElementById('yamlInput').value;
@@ -300,70 +407,152 @@ Sub-headline: 'Your subheadline here'
         }
 
         try {
-          // Parse YAML
-          const data = jsyaml.load(yamlText);
+          console.log('Step 1: Auto-escaping apostrophes...');
+          // Step 1: Auto-escape apostrophes
+          const processedYAML = autoEscapeApostrophes(yamlText);
 
-          // Replace variables in template
+          console.log('Step 2: Parsing YAML...');
+          // Step 2: Parse YAML
+          const rawData = jsyaml.load(processedYAML);
+          console.log('Parsed data:', rawData);
+
+          console.log('Step 3: Flattening nested structures...');
+          // Step 3: Flatten nested structures
+          const flatData = flattenObject(rawData);
+          console.log('Flattened data keys:', Object.keys(flatData).length);
+
+          console.log('Step 4: Creating flexible mapping...');
+          // Step 4: Create flexible key mapping
+          const dataMapping = createFlexibleMapping(flatData);
+          console.log('Mapping size:', dataMapping.size);
+
+          console.log('Step 5: Replacing variables in template...');
+          // Step 5: Replace variables in template
           let html = template;
+          console.log('Template length:', html.length);
 
-          // Replace each variable (supports nested <strong> wrappers and spacing)
-          for (const [key, value] of Object.entries(data)) {
-            const replacement = value || '';
-            const escapedKey = escapeRegex(key);
+          // Track which variables were found
+          const foundVars = new Set();
+          const missingVars = new Set();
 
-            // 1) {key}
-            html = html.replace(
-              new RegExp(`\\{\\s*${escapedKey}\\s*\\}`, 'g'),
-              replacement
-            );
+          // Split HTML into segments: comments, styles, scripts, and content
+          const segments = [];
+          // Combined pattern for comments, style blocks, and script blocks
+          // Allow whitespace between tag name and closing > to handle split tags
+          const skipPattern = /<!--[\s\S]*?-->|<style[\s\S]*?<\/style\s*>|<script[\s\S]*?<\/script\s*>/gi;
+          let lastIndex = 0;
+          let match = null;
 
-            // 2) {<strong>key</strong>} with any number of nested <strong> wrappers
-            html = html.replace(
-              new RegExp(
-                `\\{\\s*(?:<strong>\\s*)+${escapedKey}(?:\\s*<\\/strong>)+\\s*\\}`,
-                'g'
-              ),
-              replacement
-            );
-
-            // 3) <strong>{key}</strong> with any number of nested <strong> wrappers
-            html = html.replace(
-              new RegExp(
-                `((?:<strong>\\s*)+)\\{\\s*${escapedKey}\\s*\\}((?:\\s*<\\/strong>)+)`,
-                'g'
-              ),
-              (_, p1, p2) => `${p1}${replacement}${p2}`
-            );
-
-            // 3b) <strong>{key</strong>} where the closing brace appears AFTER the closing </strong> tags
-            html = html.replace(
-              new RegExp(
-                `((?:<strong>\\s*)+)\\{\\s*${escapedKey}((?:\\s*<\\/strong>)+)\\s*\\}`,
-                'g'
-              ),
-              (_, p1, p2) => `${p1}${replacement}${p2}`
-            );
-
-            // 4) {<strong><strong>key</strong></strong} where closing brace appears after closing strongs
-            html = html.replace(
-              new RegExp(
-                `\\{\\s*((?:<strong>\\s*)+)${escapedKey}((?:\\s*<\\/strong>)+)\\s*\\}`,
-                'g'
-              ),
-              (_, p1, p2) => `${replacement}`
-            );
+          while ((match = skipPattern.exec(html)) !== null) {
+            // Add content before this block
+            if (match.index > lastIndex) {
+              segments.push({
+                type: 'content',
+                text: html.slice(lastIndex, match.index)
+              });
+            }
+            // Add the block to skip (comment/style/script)
+            segments.push({
+              type: 'skip',
+              text: match[0]
+            });
+            lastIndex = skipPattern.lastIndex;
           }
+
+          // Add remaining content after last match
+          if (lastIndex < html.length) {
+            segments.push({
+              type: 'content',
+              text: html.slice(lastIndex)
+            });
+          }
+
+          // Replace variables only in content segments
+          const processedSegments = segments.map(segment => {
+            if (segment.type === 'skip') {
+              return segment.text; // Return comments/styles/scripts unchanged
+            }
+
+            // Process content segment
+            let content = segment.text;
+            const variablePattern = /\{([^}]+)\}/g;
+            const matches = [...content.matchAll(variablePattern)];
+
+            for (const match of matches) {
+              const fullMatch = match[0];
+              const rawKey = match[1]
+                .replace(/<\/?strong>/gi, '')  // Remove <strong> tags
+                .trim();
+
+              const normalizedKey = normalizeKey(rawKey);
+
+              // Debug CTA button variables
+              if (rawKey.toLowerCase().includes('cta') || rawKey.toLowerCase().includes('button')) {
+                console.log('CTA/Button variable found:', rawKey);
+                console.log('  Normalized:', normalizedKey);
+                console.log('  Has raw key?', dataMapping.has(rawKey));
+                console.log('  Has normalized?', dataMapping.has(normalizedKey));
+                if (dataMapping.has(rawKey)) {
+                  console.log('  Value (raw):', dataMapping.get(rawKey));
+                }
+                if (dataMapping.has(normalizedKey)) {
+                  console.log('  Value (normalized):', dataMapping.get(normalizedKey));
+                }
+              }
+
+              // Try to find the value with flexible matching
+              let replacement = '';
+              if (dataMapping.has(rawKey)) {
+                replacement = dataMapping.get(rawKey) || '';
+                foundVars.add(rawKey);
+              } else if (dataMapping.has(normalizedKey)) {
+                replacement = dataMapping.get(normalizedKey) || '';
+                foundVars.add(rawKey);
+              } else {
+                missingVars.add(rawKey);
+              }
+
+              // Escape special regex characters in the full match
+              const escapedMatch = fullMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              content = content.replace(new RegExp(escapedMatch, 'g'), replacement);
+            }
+
+            return content;
+          });
+
+          html = processedSegments.join('');
+
+          console.log('Step 6: Displaying HTML...');
+          console.log('Final HTML length:', html.length);
+          console.log('Found variables:', foundVars.size);
+          console.log('Missing variables:', missingVars.size);
 
           // Display HTML
           document.getElementById('htmlOutput').textContent = html;
-          showStatus('htmlStatus', 'HTML generated successfully!', 'success');
+
+          // Show status with helpful info
+          let statusMessage = 'HTML generated successfully!';
+          if (missingVars.size > 0 && missingVars.size <= 5) {
+            const missing = Array.from(missingVars).slice(0, 5).join(', ');
+            statusMessage += ` Note: ${missingVars.size} variable(s) not found in YAML: ${missing}`;
+          } else if (missingVars.size > 5) {
+            statusMessage += ` Note: ${missingVars.size} variables not found in YAML (some will be empty in output)`;
+          }
+
+          showStatus('htmlStatus', statusMessage, 'success');
+          console.log('Generation complete!');
         } catch (error) {
-          console.error('Error generating HTML:', error);
-          showStatus(
-            'yamlStatus',
-            `Error parsing YAML: ${error.message}`,
-            'error'
-          );
+          console.error('ERROR generating HTML:', error);
+          console.error('Error stack:', error.stack);
+          const friendlyError = getUserFriendlyError(error, yamlText);
+          showStatus('yamlStatus', friendlyError, 'error');
+
+          // Also show raw error in console for debugging
+          console.error('Raw error details:', {
+            message: error.message,
+            name: error.name,
+            stack: error.stack
+          });
         }
       }
 

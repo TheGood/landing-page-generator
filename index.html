@@ -531,6 +531,18 @@ Sub-headline: 'Your subheadline here'
           html = html.replace(/[\u201C\u201D]/g, '"'); // Replace " and "
           html = html.replace(/[\u2018\u2019]/g, "'"); // Replace ' and '
 
+          // Minify HTML for WordPress block editor compatibility
+          // Remove all line breaks and excessive whitespace
+          html = html
+            .replace(/\n/g, '') // Remove all line breaks
+            .replace(/\r/g, '') // Remove carriage returns
+            .replace(/>\s+</g, '><') // Remove whitespace between tags
+            .replace(/\s{2,}/g, ' ') // Collapse multiple spaces to one
+            .replace(/:\s+/g, ':') // Remove spaces after colons in CSS
+            .replace(/;\s+/g, ';') // Remove spaces after semicolons in CSS
+            .replace(/,\s+/g, ',') // Remove spaces after commas
+            .trim(); // Remove leading/trailing whitespace
+
           console.log('Step 6: Displaying HTML...');
           console.log('Final HTML length:', html.length);
           console.log('Found variables:', foundVars.size);

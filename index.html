@@ -526,6 +526,11 @@ Sub-headline: 'Your subheadline here'
           // This prevents WordPress from adding errant spaces
           html = html.replace(/\s+>/g, '>');
 
+          // Convert curly/smart quotes to straight quotes
+          // WordPress requires ASCII straight quotes for proper parsing
+          html = html.replace(/[\u201C\u201D]/g, '"'); // Replace " and "
+          html = html.replace(/[\u2018\u2019]/g, "'"); // Replace ' and '
+
           console.log('Step 6: Displaying HTML...');
           console.log('Final HTML length:', html.length);
           console.log('Found variables:', foundVars.size);

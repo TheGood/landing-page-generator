@@ -522,6 +522,10 @@ Sub-headline: 'Your subheadline here'
 
           html = processedSegments.join('');
 
+          // Fix split closing tags by removing line breaks before >
+          // This prevents WordPress from adding errant spaces
+          html = html.replace(/\s+>/g, '>');
+
           console.log('Step 6: Displaying HTML...');
           console.log('Final HTML length:', html.length);
           console.log('Found variables:', foundVars.size);

@@ -537,9 +537,16 @@ Sub-headline: 'Your subheadline here'
             .replace(/\n/g, '') // Remove all line breaks
             .replace(/\r/g, '') // Remove carriage returns
             .replace(/>\s+</g, '><') // Remove whitespace between tags
+            .replace(/<(\w+)>\s+/g, '<$1>') // Remove space after opening tags like <style>
+            .replace(/\s+<\//g, '</') // Remove space before closing tags like </style>
             .replace(/\s{2,}/g, ' ') // Collapse multiple spaces to one
+            .replace(/="\s+/g, '="') // Remove space after opening quote in attributes
+            .replace(/\s+"/g, '"') // Remove space before closing quote in attributes
+            .replace(/\(\s+/g, '(') // Remove space after opening parenthesis
+            .replace(/\s+\)/g, ')') // Remove space before closing parenthesis
             .replace(/:\s+/g, ':') // Remove spaces after colons in CSS
             .replace(/;\s+/g, ';') // Remove spaces after semicolons in CSS
+            .replace(/;+"/g, '"') // Remove trailing semicolons before closing quotes
             .replace(/,\s+/g, ',') // Remove spaces after commas
             .trim(); // Remove leading/trailing whitespace
 

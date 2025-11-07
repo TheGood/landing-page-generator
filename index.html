@@ -467,10 +467,13 @@ Sub-headline: 'Your subheadline here'
             });
           }
 
-          // Replace variables only in content segments
+          // Replace variables and minify content segments only
           const processedSegments = segments.map(segment => {
             if (segment.type === 'skip') {
-              return segment.text; // Return comments/styles/scripts unchanged
+              // For style/script/comment blocks, only remove line breaks
+              let content = segment.text;
+              content = content.replace(/\n/g, '').replace(/\r/g, '');
+              return content;
             }
 
             // Process content segment
@@ -485,20 +488,6 @@ Sub-headline: 'Your subheadline here'
                 .trim();
 
               const normalizedKey = normalizeKey(rawKey);
-
-              // Debug CTA button variables
-              if (rawKey.toLowerCase().includes('cta') || rawKey.toLowerCase().includes('button')) {
-                console.log('CTA/Button variable found:', rawKey);
-                console.log('  Normalized:', normalizedKey);
-                console.log('  Has raw key?', dataMapping.has(rawKey));
-                console.log('  Has normalized?', dataMapping.has(normalizedKey));
-                if (dataMapping.has(rawKey)) {
-                  console.log('  Value (raw):', dataMapping.get(rawKey));
-                }
-                if (dataMapping.has(normalizedKey)) {
-                  console.log('  Value (normalized):', dataMapping.get(normalizedKey));
-                }
-              }
 
               // Try to find the value with flexible matching
               let replacement = '';
@@ -517,38 +506,99 @@ Sub-headline: 'Your subheadline here'
               content = content.replace(new RegExp(escapedMatch, 'g'), replacement);
             }
 
+            // Minify content, but preserve nested <style> and <script> blocks
+            // Split content into sub-segments to handle nested style/script tags
+            const nestedStylePattern = /<style[\s\S]*?<\/style\s*>|<script[\s\S]*?<\/script\s*>/gi;
+            const nestedSegments = [];
+            let nestedLastIndex = 0;
+            let nestedMatch;
+
+            while ((nestedMatch = nestedStylePattern.exec(content)) !== null) {
+              // Add content before this nested block
+              if (nestedMatch.index > nestedLastIndex) {
+                nestedSegments.push({
+                  type: 'minify',
+                  text: content.slice(nestedLastIndex, nestedMatch.index)
+                });
+              }
+              // Add the nested block (minify CSS inside but keep structure)
+              let nestedContent = nestedMatch[0];
+              // Minify CSS inside style tags but preserve WordPress expected format
+              nestedContent = nestedContent
+                .replace(/\r/g, '') // Remove carriage returns
+                .replace(/\n\s*/g, '\n') // Remove indentation but keep line breaks initially
+                .replace(/>\s*\n\s*/g, '>\n\t') // Add tab after > before CSS rule
+                .replace(/\n\t*\s*/g, '\n\t') // Normalize to single tab
+                .replace(/\s*{\s*/g, '{') // Remove spaces around {
+                .replace(/\s*}\s*/g, '}') // Remove spaces around }
+                .replace(/\s*:\s*/g, ':') // Remove spaces around :
+                .replace(/\s*;\s*/g, ';') // Remove spaces around ;
+                .replace(/;\s*}/g, '}') // Remove trailing semicolon before }
+                .replace(/\n\t*</g, '\n</') // Line break before closing tag
+                .replace(/#([0-9a-f]{3,6})/gi, (match, hex) => '#' + hex.toUpperCase()); // Uppercase hex colors
+              nestedSegments.push({
+                type: 'preserve',
+                text: nestedContent
+              });
+              nestedLastIndex = nestedStylePattern.lastIndex;
+            }
+
+            // Add remaining content
+            if (nestedLastIndex < content.length) {
+              nestedSegments.push({
+                type: 'minify',
+                text: content.slice(nestedLastIndex)
+              });
+            }
+
+            // Process each nested segment
+            content = nestedSegments.map(seg => {
+              if (seg.type === 'preserve') {
+                return seg.text; // Return nested style/script as-is
+              }
+
+              // Minify this segment
+              let segText = seg.text;
+
+              // Step 1: Extract and preserve SVG path d attributes (they need exact spacing)
+              const pathDAttrs = [];
+              segText = segText.replace(/\bd="([^"]*)"/g, (match, dValue) => {
+                pathDAttrs.push(dValue);
+                return `d="__PATH_D_${pathDAttrs.length - 1}__"`;
+              });
+
+              // Step 2: Apply minification
+              segText = segText
+                .replace(/\n/g, '') // Remove line breaks
+                .replace(/\r/g, '') // Remove carriage returns
+                .replace(/>\s+</g, '><') // Remove whitespace between tags
+                .replace(/="\s+/g, '="') // Remove whitespace after opening quote
+                .replace(/\s+"/g, '"') // Remove whitespace before closing quote
+                .replace(/\(\s+/g, '(') // Remove whitespace after (
+                .replace(/\s+\)/g, ')') // Remove whitespace before )
+                .replace(/\s+;/g, ';') // Remove whitespace before ;
+                .replace(/:\s+/g, ':') // Remove whitespace after :
+                .replace(/;\s+/g, ';') // Remove whitespace after ;
+                .replace(/\);"/g, ')"') // Remove trailing semicolon: );\" → )\"
+                .replace(/;+"/g, '"') // Remove any other trailing ; before "
+                .replace(/,\s+/g, ',') // Remove whitespace after ,
+                .replace(/\s{2,}/g, ' '); // Collapse multiple spaces
+
+              // Step 3: Restore original path d attributes with exact spacing
+              segText = segText.replace(/d="__PATH_D_(\d+)__"/g, (match, index) => {
+                return `d="${pathDAttrs[index]}"`;
+              });
+
+              return segText;
+            }).join('');
+
             return content;
           });
 
           html = processedSegments.join('');
 
-          // Fix split closing tags by removing line breaks before >
-          // This prevents WordPress from adding errant spaces
+          // Fix split closing tags - remove any remaining whitespace before >
           html = html.replace(/\s+>/g, '>');
-
-          // Convert curly/smart quotes to straight quotes
-          // WordPress requires ASCII straight quotes for proper parsing
-          html = html.replace(/[\u201C\u201D]/g, '"'); // Replace " and "
-          html = html.replace(/[\u2018\u2019]/g, "'"); // Replace ' and '
-
-          // Minify HTML for WordPress block editor compatibility
-          // Remove all line breaks and excessive whitespace
-          html = html
-            .replace(/\n/g, '') // Remove all line breaks
-            .replace(/\r/g, '') // Remove carriage returns
-            .replace(/>\s+</g, '><') // Remove whitespace between tags
-            .replace(/<(\w+)>\s+/g, '<$1>') // Remove space after opening tags like <style>
-            .replace(/\s+<\//g, '</') // Remove space before closing tags like </style>
-            .replace(/\s{2,}/g, ' ') // Collapse multiple spaces to one
-            .replace(/="\s+/g, '="') // Remove space after opening quote in attributes
-            .replace(/\s+"/g, '"') // Remove space before closing quote in attributes
-            .replace(/\(\s+/g, '(') // Remove space after opening parenthesis
-            .replace(/\s+\)/g, ')') // Remove space before closing parenthesis
-            .replace(/:\s+/g, ':') // Remove spaces after colons in CSS
-            .replace(/;\s+/g, ';') // Remove spaces after semicolons in CSS
-            .replace(/;+"/g, '"') // Remove trailing semicolons before closing quotes
-            .replace(/,\s+/g, ',') // Remove spaces after commas
-            .trim(); // Remove leading/trailing whitespace
 
           console.log('Step 6: Displaying HTML...');
           console.log('Final HTML length:', html.length);

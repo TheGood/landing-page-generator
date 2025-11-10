@@ -11,10 +11,12 @@ A simple web tool to generate landing pages from YAML content.
 ## How to Use
 
 ### Setup
+
 1. Place all three files in the same folder
-2. Open `index.html` in your web browser
+2. Open `index.html` in your web browser or run `npx http-server -p 8000`
 
 ### Workflow
+
 1. **Generate YAML with Claude**: In your Claude Project, ask Claude to generate landing page content in YAML format for your topic
 2. **Copy the YAML**: Copy the YAML output from Claude
 3. **Paste into tool**: Paste it into the left panel of the generator
@@ -92,42 +94,51 @@ Make the content compelling and professional for this topic.
 Your template has 57 content variables organized into these sections:
 
 **Hero Section:**
+
 - Main Headline
-- Sub-headline  
+- Sub-headline
 - Primary CTA Button
 
 **Value Proposition:**
+
 - Value Proposition
 - Pain point 1-5
 - Main point 1-3
 
 **Process:**
+
 - Process / How it works
 - Process step 1-3 description
 - Optional: process step 4-5 description
 
 **Differentiation:**
+
 - Differentiator/why us header
 - Differentiation point 1-6
 
 **Social Proof:**
+
 - Social proof section heading
 - Case study 1-3 (name and description)
 
 **Offer:**
+
 - Pricing/Offer Call Out
 - Offer detail 1-5
 
 **CTAs:**
+
 - CTA to get in touch and schedule a call
 - cta button 1
 - CTA Button 2
 - Final CTA header
 
 **FAQ:**
+
 - FAQ 2-11 (questions and answers)
 
 **Supporting:**
+
 - Supporting description
 - Summary of the page
 
@@ -144,12 +155,14 @@ Your template has 57 content variables organized into these sections:
 To share this tool:
 
 1. **GitHub Pages** (free, easiest):
+
    - Create a GitHub repo
    - Upload all three files
    - Enable GitHub Pages in settings
    - Share the URL
 
 2. **Netlify** (free, drag-and-drop):
+
    - Go to netlify.com
    - Drag your folder onto Netlify
    - Get instant URL
@@ -160,13 +173,15 @@ To share this tool:
 
 **"Template not loaded"**: Make sure all three files are in the same folder
 
-**YAML parsing error**: 
+**YAML parsing error**:
+
 - Make sure you're using proper YAML syntax
 - Strings with special characters should be in quotes
 - Check for proper indentation
 - Look at example-content.yaml for correct format
 
-**Missing content in output**: 
+**Missing content in output**:
+
 - Some variables may not be in your YAML
 - Check variable names match exactly (case-sensitive)
 - Reference example-content.yaml for the complete list

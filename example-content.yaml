@@ -1,5 +1,16 @@
 # Landing Page Content Template
 # Fill in these values and paste into the generator
+#
+# ⚠️ YAML QUOTE RULES (CRITICAL):
+# - Use SINGLE quotes ('') for content WITHOUT apostrophes
+# - Use DOUBLE quotes ("") for content WITH apostrophes (can't, don't, we're, it's, etc.)
+#
+# Why this matters: Single quotes with apostrophes create errors or double apostrophes in output
+#
+# Examples in this file:
+# - Line 13: Single quotes (no apostrophes) ✓
+# - Line 73: Double quotes (contains "Don't") ✓
+# - Line 101: Double quotes (contains "We're") ✓
 
 # Hero Section
 Main Headline: 'Transform Your Business with AI-Powered Solutions'

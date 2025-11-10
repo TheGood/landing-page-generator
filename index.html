@@ -407,6 +407,22 @@ Sub-headline: 'Your subheadline here'
         }
 
         try {
+          // Helper function to encode HTML entities (prevent WordPress double-encoding)
+          function encodeHTML(str) {
+            const original = str;
+            const encoded = str
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+
+            if (original !== encoded) {
+              console.log('encodeHTML:', {original, encoded});
+            }
+            return encoded;
+          }
+
           console.log('Step 1: Auto-escaping apostrophes...');
           // Step 1: Auto-escape apostrophes
           const processedYAML = autoEscapeApostrophes(yamlText);
@@ -491,14 +507,26 @@ Sub-headline: 'Your subheadline here'
 
               // Try to find the value with flexible matching
               let replacement = '';
+              let originalValue = '';
               if (dataMapping.has(rawKey)) {
-                replacement = dataMapping.get(rawKey) || '';
+                originalValue = dataMapping.get(rawKey) || '';
+                replacement = encodeHTML(originalValue);
                 foundVars.add(rawKey);
               } else if (dataMapping.has(normalizedKey)) {
-                replacement = dataMapping.get(normalizedKey) || '';
+                originalValue = dataMapping.get(normalizedKey) || '';
+                replacement = encodeHTML(originalValue);
                 foundVars.add(rawKey);
               } else {
                 missingVars.add(rawKey);
+              }
+
+              // Log replacements that contain quotes for debugging
+              if (originalValue.includes("'") || originalValue.includes('"')) {
+                console.log('Replacing variable:', {
+                  key: rawKey,
+                  originalValue,
+                  encodedReplacement: replacement
+                });
               }
 
               // Escape special regex characters in the full match
@@ -581,7 +609,6 @@ Sub-headline: 'Your subheadline here'
                 .replace(/;\s+/g, ';') // Remove whitespace after ;
                 .replace(/\);"/g, ')"') // Remove trailing semicolon: );\" → )\"
                 .replace(/;+"/g, '"') // Remove any other trailing ; before "
-                .replace(/,\s+/g, ',') // Remove whitespace after ,
                 .replace(/\s{2,}/g, ' '); // Collapse multiple spaces
 
               // Step 3: Restore original path d attributes with exact spacing
@@ -596,6 +623,48 @@ Sub-headline: 'Your subheadline here'
           });
 
           html = processedSegments.join('');
+
+          // Sample the HTML before quote normalization
+          const beforeNormalization = html.slice(0, 50000);
+          const hasEncodedQuotes = beforeNormalization.includes('&#39;');
+          console.log('Before quote normalization:', {
+            hasEncodedQuotes,
+            sampleWithQuotes: beforeNormalization.match(/&#39;[^<]{0,50}/g)?.slice(0, 3)
+          });
+
+          // Convert curly quotes to straight quotes (WordPress compatibility)
+          // Log what we're about to normalize
+          const mojibakeSamples = [
+            html.match(/\u00E2\u0080\u0098/g),     // â€˜
+            html.match(/\u00E2\u0080\u0099/g),     // â€™
+            html.match(/\u00E2\u0080\u009C/g),     // â€œ
+            html.match(/\u00E2\u0080\u009D/g),     // â€
+            html.match(/\u00E2/g)                  // â alone
+          ];
+          console.log('Mojibake patterns found:', {
+            'â€˜ (left single)': mojibakeSamples[0]?.length || 0,
+            'â€™ (right single)': mojibakeSamples[1]?.length || 0,
+            'â€œ (left double)': mojibakeSamples[2]?.length || 0,
+            'â€ (right double)': mojibakeSamples[3]?.length || 0,
+            'â (standalone)': mojibakeSamples[4]?.length || 0
+          });
+
+          html = html
+            .replace(/[\u2018\u2019]/g, "'")           // Convert curly single quotes to '
+            .replace(/[\u201C\u201D]/g, '"')           // Convert curly double quotes to "
+            .replace(/\u00E2\u0080\u0098/g, "'")       // Fix â€˜ → ' (left single quote)
+            .replace(/\u00E2\u0080\u0099/g, "'")       // Fix â€™ → ' (right single quote)
+            .replace(/\u00E2\u0080\u009C/g, '"')       // Fix â€œ → " (left double quote)
+            .replace(/\u00E2\u0080\u009D/g, '"')       // Fix â€ → " (right double quote)
+            .replace(/\u00E2/g, "'");                  // Fix any remaining â → '
+
+          // Check if the normalization affected encoded entities
+          const afterNormalization = html.slice(0, 50000);
+          const stillHasEncodedQuotes = afterNormalization.includes('&#39;');
+          console.log('After quote normalization:', {
+            stillHasEncodedQuotes,
+            sampleWithQuotes: afterNormalization.match(/&#39;[^<]{0,50}/g)?.slice(0, 3)
+          });
 
           // Fix split closing tags - remove any remaining whitespace before >
           html = html.replace(/\s+>/g, '>');

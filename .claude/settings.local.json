@@ -4,7 +4,9 @@
       "Bash(python3:*)",
       "Bash(LC_ALL=C grep:*)",
       "Bash(printf:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(xxd:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

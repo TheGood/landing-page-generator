@@ -595,7 +595,27 @@ Sub-headline: 'Your subheadline here'
                 return `d="__PATH_D_${pathDAttrs.length - 1}__"`;
               });
 
-              // Step 2: Apply minification
+              // Step 1b: Extract and preserve inline style attributes (for CSS minification)
+              const styleAttrs = [];
+              segText = segText.replace(/\bstyle="([^"]*)"/g, (match, styleValue) => {
+                // Minify CSS in style attribute - handle newlines, spaces, and parentheses
+                const minifiedStyle = styleValue
+                  .replace(/\n/g, '')          // Remove line breaks
+                  .replace(/\r/g, '')          // Remove carriage returns
+                  .replace(/\s*:\s*/g, ':')    // Remove spaces around :
+                  .replace(/\s*;\s*/g, ';')    // Remove spaces around ;
+                  .replace(/\(\s+/g, '(')      // Remove spaces after (
+                  .replace(/\s+\)/g, ')')      // Remove spaces before )
+                  .replace(/;\s*}/g, '}')      // Remove trailing ; before }
+                  .replace(/\s*{\s*/g, '{')    // Remove spaces around {
+                  .replace(/\s*}\s*/g, '}')    // Remove spaces around }
+                  .replace(/\s{2,}/g, ' ')     // Collapse multiple spaces
+                  .trim();                     // Remove leading/trailing spaces
+                styleAttrs.push(minifiedStyle);
+                return `style="__STYLE_ATTR_${styleAttrs.length - 1}__"`;
+              });
+
+              // Step 2: Apply general HTML minification (not CSS-specific)
               segText = segText
                 .replace(/\n/g, '') // Remove line breaks
                 .replace(/\r/g, '') // Remove carriage returns
@@ -604,14 +624,15 @@ Sub-headline: 'Your subheadline here'
                 .replace(/\s+"/g, '"') // Remove whitespace before closing quote
                 .replace(/\(\s+/g, '(') // Remove whitespace after (
                 .replace(/\s+\)/g, ')') // Remove whitespace before )
-                .replace(/\s+;/g, ';') // Remove whitespace before ;
-                .replace(/:\s+/g, ':') // Remove whitespace after :
-                .replace(/;\s+/g, ';') // Remove whitespace after ;
                 .replace(/\);"/g, ')"') // Remove trailing semicolon: );\" → )\"
-                .replace(/;+"/g, '"') // Remove any other trailing ; before "
                 .replace(/\s{2,}/g, ' '); // Collapse multiple spaces
 
-              // Step 3: Restore original path d attributes with exact spacing
+              // Step 3: Restore inline style attributes
+              segText = segText.replace(/style="__STYLE_ATTR_(\d+)__"/g, (match, index) => {
+                return `style="${styleAttrs[index]}"`;
+              });
+
+              // Step 4: Restore original path d attributes with exact spacing
               segText = segText.replace(/d="__PATH_D_(\d+)__"/g, (match, index) => {
                 return `d="${pathDAttrs[index]}"`;
               });
